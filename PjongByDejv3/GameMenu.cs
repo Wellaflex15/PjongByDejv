@@ -6,7 +6,7 @@ using System.Threading.Tasks;
 
 namespace PjongByDejv3
 {
-    public class GameMenu
+    public class GameMenu // TODO(david): Fix this class and everything
     {
         public string Name { get; set; }
         public List<MenuChoice> ListOfChoices { get; set; } = new List<MenuChoice>();
@@ -59,7 +59,7 @@ namespace PjongByDejv3
                             choice.Selected = true;
                         }
                     }
-                } else if(key.Key == ConsoleKey.Enter)
+                } else if(key.Key == ConsoleKey.Enter) // TODO - Move this logic to game loop!  
                 {
                     foreach (var choice in ListOfChoices)
                     {

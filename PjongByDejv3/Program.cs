@@ -34,12 +34,12 @@ namespace PjongByDejv3
         private static int ballMovementY = 1;
 
         // Player variables 
-        private static int playerOnePositionX = 2;
+        private static int playerOnePositionX = 4;
         private static int playerOnePositionY = (gameHeight/2 - 1); // If 3 long position starts in the middle
-        private static int playerOneLength = 3; // Paddle length
+        private static int playerOneLength = 4; // Paddle length
         private static int playerTwoPositionX = gameWidth - 4;
         private static int playerTwoPositionY = (gameHeight / 2 - 1); // If 3 long position starts in the middle
-        private static int playerTwoLength = 3; // Paddle length
+        private static int playerTwoLength = 4; // Paddle length
 
         // Game state variables
         private static bool gameStart = true; // Set true if game start menu is to show
@@ -93,7 +93,10 @@ namespace PjongByDejv3
                 drawBall(gameMap);
                 drawPlayers(gameMap);
                 drawGame(gameMap);
-                
+
+                Console.WriteLine(gameSpeed);
+                Console.WriteLine(ballY + ballMovementY >= playerOnePositionY + (playerOneLength / 2));
+                Console.WriteLine(ballY + ballMovementY < playerOnePositionY + (playerOneLength / 2 + 1));
                 // Slows the game down
                 Thread.Sleep(gameSpeed);
             }
@@ -128,6 +131,9 @@ namespace PjongByDejv3
                         case ConsoleKey.A:
                             if (playerOnePositionY < gameHeight - playerOneLength - 1)
                                 playerOnePositionY++;
+                            break;
+                        case ConsoleKey.Enter:  // TDOD(david): Ta bort sen! För att debugga.
+                            ballMovementY = 0;
                             break;
                         default:
                             // Do nothing
@@ -216,14 +222,48 @@ namespace PjongByDejv3
         private static void drawBall(char[,] gameMap)
         {
 
-            if ((ballX + ballMovementX <= 0) || (ballX + ballMovementX >= gameWidth - 2))
+            // TODO´(david): Think this one thru.. X is one position Y is Y times length
+            if ((ballY + ballMovementY >= playerOnePositionY && ballY + ballMovementY <= playerOnePositionY + playerOneLength) && (ballX + ballMovementX == playerOnePositionX))
+            {
+                if (ballY + ballMovementY == playerOnePositionY) // 1
+                {
+                    ballMovementY = -1;
+                    ballMovementX *= -1;
+                }
+                else if (ballY + ballMovementY >= playerOnePositionY + (playerOneLength / 2 - 1) && ballY + ballMovementY < playerOnePositionY + (playerOneLength / 2 + 1)) // 2 3 
+                {
+                    ballMovementY = 0;
+                    gameSpeed = gameSpeed - 10; // TODO(david): funkar bara på 3:an inte på 2:an... Undersök
+                    ballMovementX *= -1;
+                }
+                else if (ballY + ballMovementY == playerOnePositionY + playerOneLength - 1) // 4
+                {
+                    ballMovementY = 1;
+                    ballMovementX *= -1;
+                }
+                else
+                {
+                    //Nothing
+                }
+
+            }
+
+            // Player Two Score
+            if (ballX + ballMovementX <= 0)
             {
                 ballMovementX *= -1;
             }
+            // Player One Score
+            if (ballX + ballMovementX >= gameWidth - 2)
+            {
+                ballMovementX *= -1;
+            }
+
             if ((ballY + ballMovementY <= 0) || (ballY + ballMovementY >= gameHeight - 1))
             {
                 ballMovementY *= -1;
             }
+            
 
             ballX += ballMovementX;
             ballY += ballMovementY;

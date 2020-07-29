@@ -65,18 +65,20 @@ namespace PjongByDejv3
                     {
                         if (choice.Name == "Start" && choice.Selected == true)
                         {
-                            choice.Selected = false;
                             showMenu = false;
                         }
                         if (choice.Name == "HighScore" && choice.Selected == true)
                         {
-                            choice.Selected = false;
-                            showMenu = false;
+                            Console.Clear();
+                            foreach (var highscore in HighScore.HighScoresList)
+                            {
+                                Console.WriteLine(highscore.ToString());
+                            }
+
+                            Console.ReadLine();
                         }
-                        
                     }
                 }
-                
                 Console.Clear();
             }
         }

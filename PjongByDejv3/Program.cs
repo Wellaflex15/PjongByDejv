@@ -3,31 +3,48 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Net;
 using System.Security.Policy;
+using System.Speech.Synthesis;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
+using System.Windows;
 using System.Windows.Input;
 
 namespace PjongByDejv3
 {
     class Program
     {
+        // TODO - Fix highscore and game menu
+        // TODO - Speed increase -> Method
+        // TODO - Move all speaking to SoundThread
+        // TODO - Fix method for inserting new time in right place
+        // TODO - save highscore
+        // TODO - Refactor everything
+
         /* Classic Pjong v.3 inspired by RWFRS */
 
         /* https://en.wikipedia.org/wiki/List_of_Unicode_characters */
 
-        // Console variables and stuff
-
+        #region Variables
 
         // Game field variables
         private static int gameSpeed = 100;
+        private static int gameStartSpeed = 100;
         private static int gameHeight = 25;
         private static int gameWidth = 55;
+        private static int scorePositionY = 5;
+        private static int scorePositionX = 10;
+        private static int playerOneScore = 0;
+        private static int playerTwoScore = 0;
+        private static int gameEndScore = 3;
+
 
         // The game buffer -> that I will draw to
         private static char[,] gameMap = new char[gameHeight, gameWidth];
 
         // Ball variables
+        private static int ballXStartPosition = gameWidth/2; // Start in the middle
+        private static int ballYStartPosition = gameHeight/2; // Start in the middle
         private static int ballX = gameWidth/2; // Start in the middle
         private static int ballY = gameHeight/2; // Start in the middle
         private static int ballMovementX = 1;
@@ -42,8 +59,11 @@ namespace PjongByDejv3
         private static int playerTwoLength = 4; // Paddle length
 
         // Game state variables
+        private static bool gameStartAndRunning = true;
         private static bool gameStart = true; // Set true if game start menu is to show
         private static bool gameScore = false; // If true one player has scored
+        private static bool playerOnePoint = false; // If true one player has scored
+        private static bool playerTwoPoint = false; // If true one player has scored
         private static bool gameEnd = false; // A player has reached the winning score or ESC has been pressed to end the game
         private static bool gameRunning = true; // For the main game loop
 
@@ -57,62 +77,131 @@ namespace PjongByDejv3
         private static MenuChoice highScore = new MenuChoice("HighScore", false);
         private static List<MenuChoice> menuChoices = new List<MenuChoice>();
 
+        // CPU speech 
+        //For CPU talking
+        private static SpeechSynthesizer cpuTalk = new SpeechSynthesizer();
+        #endregion
+
+        #region Game Loop and logic
         static void Main(string[] args)
         {
-            HighScoreEntry highScoreEntry = new HighScoreEntry();
-            highScoreEntry.Place = 1;
-            highScoreEntry.Name = "David";
-            highScoreEntry.Duration = DateTime.Now - DateTime.MinValue;
-            highScoreEntry.Date = DateTime.Now;
-            Console.WriteLine(highScoreEntry.ToString());
-
-            Console.ReadLine();
-
-
+            // Create menu for game
             menuChoices.Add(start);
             menuChoices.Add(highScore);
-
             GameMenu gameMenu = new GameMenu("StartMenu", menuChoices); // GameMenuItems into the gameMenu
             
             Console.CursorVisible = false;
 
+            //Starting Threads
             Thread playerOneInputThread = new Thread(new ThreadStart(PlayerOneInputThread));
             Thread playerTwoInputThread = new Thread(new ThreadStart(PlayerTwoInputThread));
+            Thread soundThread = new Thread(new ThreadStart(SoundThread));
+            playerOneInputThread.Start();
+            playerTwoInputThread.Start();
+            soundThread.Start();
 
+            // Get highscores from file
+            HighScore.GetHighScores();
 
-            while (gameRunning)
+            while (gameStartAndRunning)
             {
                 if (gameStart)
                 {
                     gameMenu.ShowMenu();
-                    playerOneInputThread.Start();
-                    playerTwoInputThread.Start();
                     gameStart = false;
+                    startTime = DateTime.Now;
                 }
-                createBoarder(gameMap);
-                drawBall(gameMap);
-                drawPlayers(gameMap);
-                drawGame(gameMap);
+                else if(gameScore)
+                {
+                    Console.Clear();
+                    ballX = ballXStartPosition;
+                    ballY = ballYStartPosition;
+                    gameSpeed = gameStartSpeed;
 
-                Console.WriteLine(gameSpeed);
-                Console.WriteLine(ballY + ballMovementY >= playerOnePositionY + (playerOneLength / 2));
-                Console.WriteLine(ballY + ballMovementY < playerOnePositionY + (playerOneLength / 2 + 1));
+                    if (playerOnePoint)
+                    {
+                        Console.WriteLine("You scored!");
+                        Console.WriteLine($"You: {playerOneScore} - CUP: {playerTwoScore}");
+                        Console.WriteLine("Press Enter to start");
+                        cpuSpeaks("You're lucky!", VoiceGender.Male, 5);
+                        playerOnePoint = false;
+                    }
+                    else if (playerTwoPoint)
+                    {
+                        Console.WriteLine("CPU scored!");
+                        Console.WriteLine($"You: {playerOneScore} - CUP: {playerTwoScore}");
+                        Console.WriteLine("Press Enter to start");
+                        cpuSpeaks("I'm the best! You will never beat me!", VoiceGender.Male, 5);
+                        playerTwoPoint = false;
+                    }
+
+                    Console.ReadLine();
+                    gameScore = false;
+                }
+                else if(gameEnd)
+                {
+                    endTime = DateTime.Now;
+                    gameDuration = endTime - startTime;
+                    Console.Clear();
+                    ballX = ballXStartPosition;
+                    ballY = ballYStartPosition;
+                    gameSpeed = gameStartSpeed;
+                    gameStart = true;
+                    gameEnd = false;
+                    if(playerOneScore > playerTwoScore)
+                    {
+                        Console.WriteLine($"You won! Your time is {gameDuration}");
+                        Console.WriteLine();
+
+                        foreach (var highscore in HighScore.HighScoresList)
+                        {
+                            Console.WriteLine(highscore.ToString());
+                        }
+
+                        Console.ReadLine();
+                    }
+                    else
+                    {
+                        Console.WriteLine("You lost! Here is the HIGHSCORE:");
+                        Console.WriteLine();
+
+                        foreach (var highscore in HighScore.HighScoresList)
+                        {
+                            Console.WriteLine(highscore.ToString());
+                        }
+
+                        cpuSpeaks("Haha! Go home! 3270! Beep beep boop boop! Ha ha ha!", VoiceGender.Male, 5);
+
+                        Console.ReadLine();
+                    }
+                    playerOneScore = 0;
+                    playerTwoScore = 0;
+                    Console.Clear();
+                }
+                else if(gameRunning)
+                {
+                    drawGame(gameMap);
+                    createBoarder(gameMap);
+                    drawBall(gameMap);
+                    drawPlayers(gameMap);
+                    drawScore(gameMap);
+
+                    Thread.Sleep(gameSpeed);
+                }
+                //Console.WriteLine(gameSpeed);
+                //Console.WriteLine(ballY + ballMovementY >= playerOnePositionY + (playerOneLength / 2));
+                //Console.WriteLine(ballY + ballMovementY < playerOnePositionY + (playerOneLength / 2 + 1));
                 // Slows the game down
-                Thread.Sleep(gameSpeed);
             }
-
-
-
         }
+        #endregion
 
-
+        #region Game Threads
         /// <summary>
         /// Thread that controlls the inputs from the player
         /// </summary>
         private static void PlayerOneInputThread()
         {
-
-
             while (gameRunning)
             {
 
@@ -156,16 +245,16 @@ namespace PjongByDejv3
                 //Super AI created by Dejv
                 Random RNG = new Random();
                 int RandomPosition = RNG.Next(2, gameHeight - playerTwoLength - 1);
-                int RandomNumber = RNG.Next(0, 10);
+                int RandomNumber = RNG.Next(0, 30);
 
                 //Up
-                if (ballY < playerTwoPositionY)
+                if (ballY <= playerTwoPositionY)
                 {
                     if (playerTwoPositionY > 1)
                         playerTwoPositionY--;
                 }
                 //Down
-                if (ballY > playerTwoPositionY + playerTwoLength - 1)
+                if (ballY >= playerTwoPositionY + playerTwoLength - 1)
                 {
                     if (playerTwoPositionY < gameHeight - playerTwoLength - 1)
                         playerTwoPositionY++;
@@ -175,9 +264,36 @@ namespace PjongByDejv3
                     playerTwoPositionY = RandomPosition;
                 }
             }
-
         }
 
+        private static void SoundThread()
+        {
+            while (gameRunning)
+            {
+                // Controlling player1 player paddle touches - Think it's working
+                if (((ballY + ballMovementY) >= playerOnePositionY) && ((ballY + ballMovementY) <= (playerOnePositionY + playerOneLength)) && ((ballX + ballMovementX) == playerOnePositionX))
+                {
+                    cpuSpeaks("Boing", VoiceGender.Neutral, 10);
+                    //if (ballY + ballMovementY >= playerOnePositionY + (playerOneLength / 2 - 1) && ballY + ballMovementY < playerOnePositionY + (playerOneLength / 2 + 1)) // 2 3 
+                    //{
+                    //    cpuSpeaks("Higher speed! Hell Yeaaaaaah!", VoiceGender.Neutral, 5);
+                    //}
+                }
+
+                // Controlling player1 player paddle touches - Think it's working
+                if (((ballY + ballMovementY) >= playerTwoPositionY) && ((ballY + ballMovementY) <= (playerTwoPositionY + playerTwoLength)) && ((ballX + ballMovementX) == playerTwoPositionX))
+                {
+                    cpuSpeaks("Boing", VoiceGender.Neutral, 10);
+                    //if (ballY + ballMovementY >= playerTwoPositionY + (playerTwoLength / 2 - 1) && ballY + ballMovementY < playerTwoPositionY + (playerTwoLength / 2 + 1)) // 2 3 
+                    //{
+                    //    cpuSpeaks("Speed increase! Wooohoo!", VoiceGender.Neutral, 5);
+                    //}
+                }
+            }
+        }
+        #endregion
+
+        #region Game Methods
         /// <summary>
         /// Creates the game boarder and game field
         /// </summary>
@@ -222,8 +338,8 @@ namespace PjongByDejv3
         private static void drawBall(char[,] gameMap)
         {
 
-            // TODO´(david): Think this one thru.. X is one position Y is Y times length
-            if ((ballY + ballMovementY >= playerOnePositionY && ballY + ballMovementY <= playerOnePositionY + playerOneLength) && (ballX + ballMovementX == playerOnePositionX))
+            // Controlling player1 player paddle touches - Think it's working
+            if (((ballY + ballMovementY) >= playerOnePositionY) && ((ballY + ballMovementY) <= (playerOnePositionY + playerOneLength)) && ((ballX + ballMovementX) == playerOnePositionX))
             {
                 if (ballY + ballMovementY == playerOnePositionY) // 1
                 {
@@ -232,8 +348,12 @@ namespace PjongByDejv3
                 }
                 else if (ballY + ballMovementY >= playerOnePositionY + (playerOneLength / 2 - 1) && ballY + ballMovementY < playerOnePositionY + (playerOneLength / 2 + 1)) // 2 3 
                 {
+                    // TODO(david): funkar bara på 3:an inte på 2:an... Undersök
+                    if (gameSpeed > 20)
+                    {
+                        gameSpeed -= 20;
+                    }
                     ballMovementY = 0;
-                    gameSpeed = gameSpeed - 10; // TODO(david): funkar bara på 3:an inte på 2:an... Undersök
                     ballMovementX *= -1;
                 }
                 else if (ballY + ballMovementY == playerOnePositionY + playerOneLength - 1) // 4
@@ -245,20 +365,69 @@ namespace PjongByDejv3
                 {
                     //Nothing
                 }
-
             }
 
-            // Player Two Score
-            if (ballX + ballMovementX <= 0)
+            // Controlling CPU paddle touches - Think it's working
+            if (((ballY + ballMovementY) >= playerTwoPositionY) && ((ballY + ballMovementY) <= (playerTwoPositionY + playerTwoLength)) && ((ballX + ballMovementX) == playerTwoPositionX))
             {
-                ballMovementX *= -1;
+                if (ballY + ballMovementY == playerTwoPositionY) // 1
+                {
+                    ballMovementY = -1;
+                    ballMovementX *= -1;
+                }
+                else if (ballY + ballMovementY >= playerTwoPositionY + (playerTwoLength / 2 - 1) && ballY + ballMovementY < playerTwoPositionY + (playerTwoLength / 2 + 1)) // 2 3 
+                {
+                    // TODO(david): funkar bara på 3:an inte på 2:an... Undersök
+                    if(gameSpeed > 20)
+                    {
+                        gameSpeed -= 20; 
+                    }
+                    ballMovementY = 0;
+                    ballMovementX *= -1;
+                }
+                else if (ballY + ballMovementY == playerTwoPositionY + playerTwoLength - 1) // 4
+                {
+                    ballMovementY = 1;
+                    ballMovementX *= -1;
+                }
+                else
+                {
+                    //Nothing
+                }
             }
+
             // Player One Score
             if (ballX + ballMovementX >= gameWidth - 2)
             {
                 ballMovementX *= -1;
+                playerOneScore++;
+                if (playerOneScore < gameEndScore)
+                {
+                    gameScore = true;
+                    playerOnePoint = true;
+                }
+                else
+                {
+                    gameEnd = true;
+                }
+            }
+            // Player Two Score
+            if (ballX + ballMovementX <= 0)
+            {
+                ballMovementX *= -1;
+                playerTwoScore++;
+                if (playerTwoScore < gameEndScore)
+                {
+                    gameScore = true;
+                    playerTwoPoint = true;
+                }
+                else
+                {
+                    gameEnd = true;
+                }
             }
 
+            // Roof and floor bounces
             if ((ballY + ballMovementY <= 0) || (ballY + ballMovementY >= gameHeight - 1))
             {
                 ballMovementY *= -1;
@@ -298,8 +467,20 @@ namespace PjongByDejv3
             Console.SetCursorPosition(0, 0);
             Console.Write(drawGameString);
 
-
         }
 
+        public static void drawScore(char[,] gameMap)
+        {
+            gameMap[scorePositionY, scorePositionX] = Convert.ToChar(playerOneScore.ToString());
+            gameMap[scorePositionY, scorePositionX + 35] = Convert.ToChar(playerTwoScore.ToString());
+        }
+
+        public static void cpuSpeaks(string cpuPhrase, VoiceGender voiceGender, int rate)
+        {
+            cpuTalk.Rate = rate;
+            cpuTalk.SelectVoiceByHints(voiceGender);
+            cpuTalk.Speak(cpuPhrase);
+        }
+        #endregion
     }
 }

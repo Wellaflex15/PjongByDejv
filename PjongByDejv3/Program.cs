@@ -2,6 +2,7 @@
 using System.Collections.Generic;
 using System.Linq;
 using System.Net;
+using System.Runtime.InteropServices;
 using System.Security.Policy;
 using System.Speech.Synthesis;
 using System.Text;
@@ -25,6 +26,23 @@ namespace PjongByDejv3
 
         /* https://en.wikipedia.org/wiki/List_of_Unicode_characters */
 
+        #region ConsoleVariables
+        //Make console locked -> https://docs.microsoft.com/de-de/windows/desktop/menurc/wm-syscommand
+        const int MF_BYCOMMAND = 0x00000000;
+        const int SC_MINIMIZE = 0xF020;
+        const int SC_MAXIMIZE = 0xF030;
+        const int SC_SIZE = 0xF000;
+
+        [DllImport("user32.dll")]
+        public static extern int DeleteMenu(IntPtr hMenu, int nPosition, int wFlags);
+
+        [DllImport("user32.dll")]
+        private static extern IntPtr GetSystemMenu(IntPtr hWnd, bool bRevert);
+
+        [DllImport("kernel32.dll", ExactSpelling = true)]
+        private static extern IntPtr GetConsoleWindow();
+        #endregion
+
         #region Variables
 
         // Game field variables
@@ -37,7 +55,7 @@ namespace PjongByDejv3
         private static int playerOneScore = 0;
         private static int playerTwoScore = 0;
         private static int gameEndScore = 3;
-
+        private static int globalCounter = 0;
 
         // The game buffer -> that I will draw to
         private static char[,] gameMap = new char[gameHeight, gameWidth];
@@ -51,6 +69,7 @@ namespace PjongByDejv3
         private static int ballMovementY = 1;
 
         // Player variables 
+        private static string playerOneName;
         private static int playerOnePositionX = 4;
         private static int playerOnePositionY = (gameHeight/2 - 1); // If 3 long position starts in the middle
         private static int playerOneLength = 4; // Paddle length
@@ -66,6 +85,8 @@ namespace PjongByDejv3
         private static bool playerTwoPoint = false; // If true one player has scored
         private static bool gameEnd = false; // A player has reached the winning score or ESC has been pressed to end the game
         private static bool gameRunning = true; // For the main game loop
+        private static bool speedIncrease = false; // Bool for checkning if game speed should increase
+
 
         // Timing variables - for keeping track of the time
         private static DateTime startTime;
@@ -85,13 +106,22 @@ namespace PjongByDejv3
         #region Game Loop and logic
         static void Main(string[] args)
         {
+            // Console settings
+            DeleteMenu(GetSystemMenu(GetConsoleWindow(), false), SC_MINIMIZE, MF_BYCOMMAND);
+            DeleteMenu(GetSystemMenu(GetConsoleWindow(), false), SC_MAXIMIZE, MF_BYCOMMAND);
+            DeleteMenu(GetSystemMenu(GetConsoleWindow(), false), SC_SIZE, MF_BYCOMMAND);
+
+            Console.WindowHeight = gameHeight + 2;
+            Console.WindowWidth = gameWidth;
+            Console.BufferHeight = gameHeight + 2;
+            Console.BufferWidth = gameWidth;
+            Console.CursorVisible = false;
+
             // Create menu for game
             menuChoices.Add(start);
             menuChoices.Add(highScore);
             GameMenu gameMenu = new GameMenu("StartMenu", menuChoices); // GameMenuItems into the gameMenu
             
-            Console.CursorVisible = false;
-
             //Starting Threads
             Thread playerOneInputThread = new Thread(new ThreadStart(PlayerOneInputThread));
             Thread playerTwoInputThread = new Thread(new ThreadStart(PlayerTwoInputThread));
@@ -107,9 +137,21 @@ namespace PjongByDejv3
             {
                 if (gameStart)
                 {
+                    HighScoreEntry a = new HighScoreEntry();
+                    a.Place = 5;
+                    a.Name = "Tuffs";
+                    a.Duration = DateTime.Now - DateTime.UtcNow;
+                    a.Date = DateTime.Now;
+
+                    HighScore.ToFileFormat(a);
+
+                    HighScore.AddHighScore(a);
+
                     gameMenu.ShowMenu();
-                    gameStart = false;
+                    Console.WriteLine("Enter your name and press enter:");
+                    playerOneName = Console.ReadLine();
                     startTime = DateTime.Now;
+                    gameStart = false;
                 }
                 else if(gameScore)
                 {
@@ -180,20 +222,19 @@ namespace PjongByDejv3
                 }
                 else if(gameRunning)
                 {
-                    drawGame(gameMap);
                     createBoarder(gameMap);
+                    drawInfoText(gameMap);
                     drawBall(gameMap);
                     drawPlayers(gameMap);
                     drawScore(gameMap);
-
+                    drawGame(gameMap);
+                    Console.WriteLine($"Name {playerOneName} Time: {DateTime.Now - startTime}");
+                    
                     Thread.Sleep(gameSpeed);
                 }
-                //Console.WriteLine(gameSpeed);
-                //Console.WriteLine(ballY + ballMovementY >= playerOnePositionY + (playerOneLength / 2));
-                //Console.WriteLine(ballY + ballMovementY < playerOnePositionY + (playerOneLength / 2 + 1));
-                // Slows the game down
             }
         }
+
         #endregion
 
         #region Game Threads
@@ -332,6 +373,32 @@ namespace PjongByDejv3
         }
 
         /// <summary>
+        /// Prints out info meassages on the screes. 
+        /// </summary>
+        /// <param name="gameMap"></param>
+        private static void drawInfoText(char[,] gameMap)
+        {
+            // TODO(david): Fixa detta! 
+            string speedMsg = "Speed Increase!";
+            if (speedIncrease)
+            {
+                int i = 0;
+                for (int messageStartPos = (gameWidth / 2) - (speedMsg.Length / 2); messageStartPos < ((gameWidth / 2) - (speedMsg.Length / 2)) + speedMsg.Length; messageStartPos++)
+                {
+                    gameMap[5, messageStartPos] = speedMsg[i++];
+                }
+
+                globalCounter++;
+
+                if(globalCounter == 20)
+                {
+                    speedIncrease = false;
+                    globalCounter = 0;
+                }
+            }
+        }
+
+        /// <summary>
         /// Draws the ball and handle ball physics
         /// </summary>
         /// <param name="gameMap">a char array that works as a buffer</param>
@@ -352,6 +419,7 @@ namespace PjongByDejv3
                     if (gameSpeed > 20)
                     {
                         gameSpeed -= 20;
+                        speedIncrease = true;
                     }
                     ballMovementY = 0;
                     ballMovementX *= -1;
@@ -380,7 +448,8 @@ namespace PjongByDejv3
                     // TODO(david): funkar bara på 3:an inte på 2:an... Undersök
                     if(gameSpeed > 20)
                     {
-                        gameSpeed -= 20; 
+                        gameSpeed -= 20;
+                        speedIncrease = true;
                     }
                     ballMovementY = 0;
                     ballMovementX *= -1;

@@ -4,6 +4,7 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 using System.IO;
+using System.Security.Cryptography.X509Certificates;
 
 namespace PjongByDejv3
 {
@@ -67,13 +68,37 @@ namespace PjongByDejv3
             }
         }
 
-        // Check if HighScore file exist or else create it
-
-        // Load HighScore
-
-        // Display or return a list of HighScore
         // display with cool colors
 
+        public static void AddHighScore(HighScoreEntry highScoreEntry)
+        {
+            // TODO - And how this should work
+            HighScoresList.Add(highScoreEntry);
+            // TODO - SORT!!! 
+            // HighScoresList.Sort();
+
+            foreach (var item in HighScoresList)
+            {
+                Console.WriteLine(item.ToString());
+            }
+            string highScoreToSave = ToFileFormat(highScoreEntry);
+        }
+
+        public static string ToFileFormat(HighScoreEntry highScoreEntry)
+        {
+            StringBuilder sb = new StringBuilder();
+
+            sb.Append(highScoreEntry.Place + ";");
+            sb.Append(highScoreEntry.Name + ";");
+            sb.Append(highScoreEntry.Duration + ";");
+            sb.Append(highScoreEntry.Date + ";");
+
+            Console.WriteLine(sb.ToString());
+
+            Console.WriteLine("");
+
+            return "";
+        }
         // Add a highscore to the right position in the list
         // 10 Highscore is the max
         // Remove if > 10
